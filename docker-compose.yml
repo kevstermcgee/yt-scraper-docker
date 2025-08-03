@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydatabase
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U myuser -d mydatabase" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  backup:
+    image: ubuntu:22.04
+    container_name: pg-backup
+    depends_on:
+      - db
+    volumes:
+      - ./db-archive:/backup
+      - db_data:/var/lib/postgresql/data:ro
+    entrypoint: ["/bin/bash", "-c", "apt update && apt install -y cron postgresql-client && chmod +x db-archive/backup.sh && crontab db-archive/crontab && cron -f"]
+
+  python-app:
+    build:
+      context: ./scraper
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: db
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+    restart: unless-stopped
+
+networks:
+  backend:
+
+volumes:
+  db_data:

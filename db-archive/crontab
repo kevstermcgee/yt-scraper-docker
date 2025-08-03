@@ -1,0 +1,1 @@
+0 2,14 * * * /backup.sh >> /backup/cron.log 2>&1
