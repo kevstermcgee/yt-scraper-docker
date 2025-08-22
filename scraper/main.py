@@ -49,21 +49,17 @@ async def youtube_scraper(db_ready_event: asyncio.Event):
                         else:
                             final_links.append(clean_link)
 
-                    # print(f"Invalid links filtered: {invalid_links}")
-                    # print(f"Non-11-char links filtered: {non_11_char_links}")
-
                     # Remove duplicates from the new links and add to the queue
                     new_links_to_save = list(set(final_links))
                     # print(f"Unique links after deduplication: {len(new_links_to_save)}")
 
-                    duplicates_removed = len(final_links) - len(new_links_to_save)
-                    # print(f"Duplicates removed: {duplicates_removed}")  # New logging
+                    # duplicates_removed = len(final_links) - len(new_links_to_save)
 
                     for new_link in new_links_to_save:
                         if len(queue) < 100:
                             queue.append(new_link)
 
-                    amount_of_found_links = len(new_links_to_save)
+                    # amount_of_found_links = len(new_links_to_save)
                     # print(f"Found {amount_of_found_links} new links")
 
                     db.save_link(final_links)
@@ -76,14 +72,14 @@ async def youtube_scraper(db_ready_event: asyncio.Event):
                     print(f"Error in main loop: {str(e)}")
             else:
                 print("No internet. Waiting to retry...")
-                await asyncio.sleep(5)
+                await asyncio.sleep(3)
 
 
 async def main():
     db_ready_event = asyncio.Event()
 
     # Create and start the scraper tasks, passing the event to them
-    num_scrapers = int(os.getenv("NUM_SCRAPERS", 3))
+    num_scrapers = int(os.getenv("NUM_SCRAPERS", 4))
     tasks = [asyncio.create_task(youtube_scraper(db_ready_event)) for _ in range(num_scrapers)]
 
     # Perform all synchronous database setup first
