@@ -21,15 +21,17 @@ async def youtube_scraper(db_ready_event: asyncio.Event):
                 try:
                     video_ids = [] # empty list for storing video ids
 
-                    if len(queue) == 0:
-                        video_id = db.grab_link()
-                        if video_id is None:
-                            print("No links in database. Waiting...")
-                            await asyncio.sleep(5)
-                            continue
+                    # if len(queue) == 0:
+                        # video_id = db.grab_link()
+                        # if video_id is None:
+                            # print("No links in database. Waiting...")
+                            # await asyncio.sleep(5)
+                            # continue
 
-                    else:
-                        video_id = queue.pop(0)
+                    # else:
+                        # video_id = queue.pop(0)
+
+                    video_id = db.grab_link()
 
                     url = "https://www.youtube.com/watch?v=" + video_id
 
