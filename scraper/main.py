@@ -68,6 +68,7 @@ async def youtube_scraper(db_ready_event: asyncio.Event):
                     print(f"Database contains {amount_of_links_in_db} links.")
 
                     video_ids.clear()
+                    await page.close()
                 except Exception as e:
                     print(f"Error in main loop: {str(e)}")
             else:

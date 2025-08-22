@@ -22,7 +22,7 @@ RUN pip install --upgrade pip setuptools wheel
 COPY requirements.txt .
 
 # Copy over backup script
-COPY db-archive/backup.sh /db-archive/backup.sh
+# COPY db-archive/backup.sh /db-archive/backup.sh
 
 # Install Python dependencies
 RUN pip install --no-cache-dir psycopg[binary]

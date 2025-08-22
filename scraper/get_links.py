@@ -40,6 +40,6 @@ async def scrape_youtube_links(url: str, browser, page):
         except Exception as e:
             print(f"Error while scraping {url}: {str(e)}")
             return []
-        finally:
+        # finally:
             # await browser.close()
-            await page.close()
+            # await page.close()
