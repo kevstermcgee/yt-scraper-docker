@@ -30,6 +30,7 @@ services:
     entrypoint: ["/bin/bash", "-c", "apt update && apt install -y cron postgresql-client && chmod +x /db-archive/backup.sh && crontab /db-archive/crontab && cron -f"]
 
   python-app:
+    shm_size: 1gb
     build:
       context: ./scraper
     depends_on:

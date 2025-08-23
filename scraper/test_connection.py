@@ -1,6 +1,4 @@
 import socket
-import time
-
 
 def check_connection(host="1.1.1.1", port=53, timeout=5):
     try:

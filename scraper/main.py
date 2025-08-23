@@ -1,45 +1,45 @@
 import asyncio
 import os
-
-from playwright.async_api import async_playwright
-
+import re
 import clean_links
 import db
-import get_links
 from test_connection import check_connection
+from playwright.async_api import async_playwright, TimeoutError
 
 async def youtube_scraper(db_ready_event: asyncio.Event):
-    print("Scraper task waiting for database to be ready...")
     await db_ready_event.wait()
-    print("Scraper task is running...")
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--no-sandbox"
+            ]
+        )
+        final_links = []
+        video_ids = []  # empty list for storing video ids
+
         page = await browser.new_page()
-        queue = []
+
+        # Block images and CSS
+        async def block_images_and_css(route, request):
+            if request.resource_type in ["image", "stylesheet"]:
+                await route.abort()
+            else:
+                await route.continue_()
+
+        await page.route("**/*", block_images_and_css)
+
         while True:
             if check_connection():
                 try:
-                    video_ids = [] # empty list for storing video ids
-
-                    # if len(queue) == 0:
-                        # video_id = db.grab_link()
-                        # if video_id is None:
-                            # print("No links in database. Waiting...")
-                            # await asyncio.sleep(5)
-                            # continue
-
-                    # else:
-                        # video_id = queue.pop(0)
-
                     video_id = db.grab_link()
-
                     url = "https://www.youtube.com/watch?v=" + video_id
 
-                    links = await get_links.scrape_youtube_links(url, browser, page)
-                    # print(f"Initial links scraped: {len(links)}")  # New logging
+                    links = await scrape_youtube_links(url, page)
 
                     # Process the scraped links
-                    final_links = []
                     invalid_links = 0  # Counter for invalid links
                     non_11_char_links = 0  # Counter for links that aren't 11 chars
                     for link in links:
@@ -51,19 +51,6 @@ async def youtube_scraper(db_ready_event: asyncio.Event):
                         else:
                             final_links.append(clean_link)
 
-                    # Remove duplicates from the new links and add to the queue
-                    new_links_to_save = list(set(final_links))
-                    # print(f"Unique links after deduplication: {len(new_links_to_save)}")
-
-                    # duplicates_removed = len(final_links) - len(new_links_to_save)
-
-                    for new_link in new_links_to_save:
-                        if len(queue) < 100:
-                            queue.append(new_link)
-
-                    # amount_of_found_links = len(new_links_to_save)
-                    # print(f"Found {amount_of_found_links} new links")
-
                     db.save_link(final_links)
 
                     amount_of_links_in_db = db.count_links()
@@ -71,16 +58,49 @@ async def youtube_scraper(db_ready_event: asyncio.Event):
 
                     video_ids.clear()
                 except Exception as e:
-                    print(f"Error in main loop: {str(e)}")
+                    print(f"Error in main loop: {e}")
+                    try:
+                        await page.close()
+                    except:
+                        pass
+                    page = await browser.new_page()
             else:
                 print("No internet. Waiting to retry...")
                 await asyncio.sleep(3)
 
 
+async def scrape_youtube_links(url: str, page):
+        try:
+            # Changed wait_until to 'domcontentloaded' and increased timeout
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+
+            # Wait for a common YouTube element to be sure the page is loaded
+            await page.wait_for_selector("ytd-watch-flexy", timeout=60000)
+
+            # Get all hrefs from anchor tags
+            links = await page.eval_on_selector_all(
+                "a",
+                "elements => elements.map(el => el.href)"
+            )
+
+            youtube_links = [
+                link for link in links if re.match(r"^https:\/\/(www\.)?youtube\.com\/watch\?v=", link)
+            ]
+
+            return youtube_links
+
+        except TimeoutError:
+            print(f"Timeout while loading {url}")
+            return []
+        except Exception as e:
+            print(f"Error while scraping {url}: {str(e)}")
+            return []
+
+
 async def main():
     db_ready_event = asyncio.Event()
 
-    # Create and start the scraper tasks, passing the event to them
+    # Create and start the scraper tasks
     num_scrapers = int(os.getenv("NUM_SCRAPERS", 4))
     tasks = [asyncio.create_task(youtube_scraper(db_ready_event)) for _ in range(num_scrapers)]
 
@@ -92,7 +112,7 @@ async def main():
 
     # Signal to all waiting tasks that the database is ready
     db_ready_event.set()
-    print("Notifying scraper tasks to begin.")
+    print("Notifying scraper tasks to start.")
 
     await asyncio.gather(*tasks)
 
