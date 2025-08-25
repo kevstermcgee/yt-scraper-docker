@@ -8,6 +8,33 @@ from playwright.async_api import async_playwright, TimeoutError
 
 async def youtube_scraper(db_ready_event: asyncio.Event):
     await db_ready_event.wait()
+    final_links = []
+
+    while True:
+        if check_connection():
+            try:
+                video_id = db.grab_link()
+                url = "https://www.youtube.com/watch?v=" + video_id
+                links = await scrape_youtube_links(url)
+
+                # Process the scraped links
+                for link in links:
+                    clean_link = clean_links.extract_youtube_id(link)
+                    final_links.append(clean_link)
+
+                db.save_link(final_links)
+
+                amount_of_links_in_db = db.count_links()
+
+                print(f"Database contains {amount_of_links_in_db} links.")
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+            else:
+                print("No internet. Waiting to retry...")
+                await asyncio.sleep(3)
+
+
+async def scrape_youtube_links(url: str):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -17,8 +44,6 @@ async def youtube_scraper(db_ready_event: asyncio.Event):
                 "--no-sandbox"
             ]
         )
-        final_links = []
-        video_ids = []  # empty list for storing video ids
 
         page = await browser.new_page()
 
@@ -30,46 +55,6 @@ async def youtube_scraper(db_ready_event: asyncio.Event):
                 await route.continue_()
 
         await page.route("**/*", block_images_and_css)
-
-        while True:
-            if check_connection():
-                try:
-                    video_id = db.grab_link()
-                    url = "https://www.youtube.com/watch?v=" + video_id
-
-                    links = await scrape_youtube_links(url, page)
-
-                    # Process the scraped links
-                    invalid_links = 0  # Counter for invalid links
-                    non_11_char_links = 0  # Counter for links that aren't 11 chars
-                    for link in links:
-                        clean_link = clean_links.extract_youtube_id(link)
-                        if clean_link is None:
-                            invalid_links += 1
-                        elif len(clean_link) != 11:
-                            non_11_char_links += 1
-                        else:
-                            final_links.append(clean_link)
-
-                    db.save_link(final_links)
-
-                    amount_of_links_in_db = db.count_links()
-                    print(f"Database contains {amount_of_links_in_db} links.")
-
-                    video_ids.clear()
-                except Exception as e:
-                    print(f"Error in main loop: {e}")
-                    try:
-                        await page.close()
-                    except:
-                        pass
-                    page = await browser.new_page()
-            else:
-                print("No internet. Waiting to retry...")
-                await asyncio.sleep(3)
-
-
-async def scrape_youtube_links(url: str, page):
         try:
             # Changed wait_until to 'domcontentloaded' and increased timeout
             await page.goto(url, wait_until="domcontentloaded", timeout=60000)
