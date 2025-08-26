@@ -161,3 +161,26 @@ def grab_link():
     except Exception as e:
         print(f"Error in grab_link: {e}")
         return None
+
+def grab_links_batch(batch_size=5):
+    """Return `batch_size` random youtube links from the database"""
+    try:
+        with psycopg.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT yt_ids FROM youtube_links ORDER BY RANDOM() LIMIT %s;",
+                    (batch_size,)
+                )
+                rows = cursor.fetchall()  # fetch all rows, not just one
+        # Flatten the results if yt_ids is a list/array, otherwise just return the values
+        links = []
+        for row in rows:
+            if isinstance(row[0], list):  # if your column stores arrays
+                links.extend(row[0])
+            else:
+                links.append(row[0])
+        return links
+    except Exception as e:
+        print(f"Error in grab_links_batch: {e}")
+        return []
+
