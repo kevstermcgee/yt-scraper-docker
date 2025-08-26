@@ -33,6 +33,7 @@ services:
     shm_size: 1gb
     build:
       context: ./scraper
+    ipc: "host"
     depends_on:
       db:
         condition: service_healthy
