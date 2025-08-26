@@ -34,7 +34,6 @@ async def youtube_scraper(db_ready_event: asyncio.Event, task_id: int, page):
             await asyncio.sleep(random.uniform(2, 5)) # Delay between requests
 
             if all_links:
-                print(list(all_links))
                 db.save_link(list(all_links))  # Batch save
             total_links_in_db = db.count_links()
             print(f"Database contains {total_links_in_db} links.")
