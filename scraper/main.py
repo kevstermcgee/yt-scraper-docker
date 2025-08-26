@@ -31,7 +31,7 @@ async def youtube_scraper(db_ready_event: asyncio.Event, task_id: int, page):
             all_links = {clean_links.extract_youtube_id(link)
                          for sublist in results for link in sublist if link}
 
-            await asyncio.sleep(random.uniform(2, 5)) # Delay between requests
+            # await asyncio.sleep(random.uniform(2, 5)) # Delay between requests
 
             if all_links:
                 db.save_link(list(all_links))  # Batch save
@@ -45,8 +45,8 @@ async def youtube_scraper(db_ready_event: asyncio.Event, task_id: int, page):
 
 async def scrape_youtube_links(page, url: str):
     try:
-        await page.goto(url, wait_until="networkidle", timeout=60000)
-        await page.wait_for_selector("ytd-watch-flexy", timeout=60000)
+        await page.goto(url, wait_until="networkidle", timeout=100000)
+        await page.wait_for_selector("ytd-watch-flexy", timeout=100000)
 
         # Grab only video links
         links = await page.eval_on_selector_all(
