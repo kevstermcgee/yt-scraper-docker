@@ -19,15 +19,15 @@ services:
       retries: 10
       start_period: 30s
 
-  backup:
-    image: ubuntu:22.04
-    container_name: pg-backup
-    depends_on:
-      - db
-    volumes:
-      - ./db-archive:/backup
-      - db_data:/var/lib/postgresql/data:ro
-    entrypoint: ["/bin/bash", "-c", "apt update && apt install -y cron postgresql-client && chmod +x /db-archive/backup.sh && crontab /db-archive/crontab && cron -f"]
+  # backup:
+    # image: ubuntu:22.04
+    # container_name: pg-backup
+    # depends_on:
+    #   - db
+    # volumes:
+      # - ./db-archive:/backup
+      # - db_data:/var/lib/postgresql/data:ro
+    # entrypoint: ["/bin/bash", "-c", "apt update && apt install -y cron postgresql-client && chmod +x /db-archive/backup.sh && crontab /db-archive/crontab && cron -f"]
 
   python-app:
     shm_size: 1gb
