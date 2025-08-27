@@ -34,8 +34,15 @@ async def scrape_youtube_links(page, url: str):
         if page and not page.is_closed():
             await page.close()
 
+async def scrape_and_release(semaphore: asyncio.Semaphore, page, url: str):
+    try:
+        # Perform the actual scraping
+        return await scrape_youtube_links(page, url)
+    finally:
+        # Release the semaphore slot for the next task to use
+        semaphore.release()
 
-async def youtube_scraper(db_ready_event: asyncio.Event, task_id: int, context):
+async def youtube_scraper(db_ready_event: asyncio.Event, task_id: int, context, semaphore: asyncio.Semaphore):
     await db_ready_event.wait()
     while True:
         if not check_connection():
@@ -50,8 +57,12 @@ async def youtube_scraper(db_ready_event: asyncio.Event, task_id: int, context):
 
             tasks = []
             for vid in video_ids:
+                await semaphore.acquire()
                 page = await context.new_page()
-                tasks.append(scrape_youtube_links(page, f"https://www.youtube.com/watch?v={vid}"))
+                task = asyncio.create_task(scrape_and_release(
+                    semaphore, page, f"https://www.youtube.com/watch?v={vid}"
+                ))
+                tasks.append(task)
             results = await asyncio.gather(*tasks)
 
             all_links = {clean_links.extract_youtube_id(link)
@@ -74,9 +85,11 @@ async def main():
 
     number_of_contexts = 5
 
+    max_concurrent_pages = 15 # Tune this number based on your system's RAM
+    semaphore = asyncio.Semaphore(max_concurrent_pages)
+
     def shutdown():
         stop_event.set()
-
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, shutdown)
 
@@ -114,8 +127,7 @@ async def main():
         for context in contexts:
             await context.route("**/*", block_elements)
 
-        # MODIFIED: Pass the context to the scraper task
-        tasks = [asyncio.create_task(youtube_scraper(db_ready_event, i, contexts[i]))
+        tasks = [asyncio.create_task(youtube_scraper(db_ready_event, i, contexts[i], semaphore))
                  for i in range(number_of_contexts)]
 
         await stop_event.wait()
@@ -124,7 +136,6 @@ async def main():
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-
         await browser.close()
 
 
